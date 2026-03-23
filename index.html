@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Licznik Godzin Pracy</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1e40af">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="header">
+      <div class="header-content">
+        <div class="icon">⏱️</div>
+        <h1>Licznik Godzin</h1>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- Formularz -->
+      <section class="card form-card">
+        <h2><span>📝</span> Nowy wpis</h2>
+        <form id="work-form" class="work-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Data</label>
+              <input type="date" id="date" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Start</label>
+              <input type="time" id="start" required value="00:00">
+            </div>
+            <div class="form-group">
+              <label>Koniec</label>
+              <input type="time" id="end" required value="00:00">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Przerwa</label>
+              <input type="time" id="break" value="00:00" step="300">
+            </div>
+            <button type="submit" class="btn-primary">
+              <span>💾 Zapisz</span>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Podsumowanie -->
+      <section class="card summary-card">
+        <h2><span>📊</span> Podsumowanie</h2>
+        <div class="stats-grid">
+          <div class="stat">
+            <div class="stat-label">Dzisiaj</div>
+            <div class="stat-value" id="today-total">0:00</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Ten tydzień</div>
+            <div class="stat-value" id="week-total">0:00</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Łącznie</div>
+            <div class="stat-value" id="all-total">0:00</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Lista -->
+      <section class="card list-section">
+        <div class="section-header">
+          <h2><span>📋</span> Wpisy (<span id="entries-count">0</span>)</h2>
+          <div class="actions">
+            <button id="export-btn" class="btn-secondary">
+              📥 PDF
+            </button>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Start</th>
+                <th>Koniec</th>
+                <th>Przerwa</th>
+                <th>Godziny</th>
+                <th>Akcje</th>
+              </tr>
+            </thead>
+            <tbody id="entries-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
