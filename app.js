@@ -140,34 +140,56 @@ function initForm() {
 }
 
 document.getElementById("export-btn").addEventListener("click", () => {
-  const csv = [
-    ["Data", "Start", "Koniec", "Przerwa", "Godziny"],
-    ...entries.map(e => {
-      const workMinutes = diffWithOvernight(e.start, e.end) - (e.breakMinutes || 0);
-      const totalMinutes = Math.max(workMinutes, 0);
-      return [
-        new Date(e.date).toLocaleDateString('pl-PL'),
-        e.start,
-        e.end,
-        e.breakTime,
-        formatHours(totalMinutes)
-      ];
-    })
-  ].map(row => row.map(cell => `"${cell}"`).join(",")).join("\n");
+  if (entries.length === 0) {
+    alert("Brak wpisów do eksportowania!");
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
   
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `godziny-pracy-${new Date().toISOString().slice(0,10)}.csv`;
-  link.click();
-});
+  script.onload = () => {
+    const element = document.createElement("div");
+    element.style.padding = "20px";
+    element.style.fontFamily = "Arial, sans-serif";
+    element.style.fontSize = "12px";
+    
+    const header = document.createElement("h1");
+    header.textContent = "Raport godzin pracy";
+    header.style.marginBottom = "10px";
+    header.style.fontSize = "18px";
+    header.style.borderBottom = "2px solid #1e40af";
+    header.style.paddingBottom = "10px";
+    element.appendChild(header);
 
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js");
-}
+    const dateInfo = document.createElement("p");
+    dateInfo.textContent = `Data wygenerowania: ${new Date().toLocaleDateString('pl-PL')}`;
+    dateInfo.style.marginBottom = "20px";
+    dateInfo.style.color = "#666";
+    element.appendChild(dateInfo);
 
-loadData();
-document.addEventListener("DOMContentLoaded", () => {
-  initForm();
-  updateUI();
-});
+    const summary = document.createElement("div");
+    summary.style.marginBottom = "20px";
+    summary.style.padding = "15px";
+    summary.style.backgroundColor = "#f0f4f8";
+    summary.style.borderRadius = "8px";
+    
+    const { todayMins, weekMins, allMins } = computeTotals();
+    const summaryHTML = `
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
+        <div><strong>Dzisiaj:</strong><br>${formatHours(todayMins)}</div>
+        <div><strong>Ten tydzień:</strong><br>${formatHours(weekMins)}</div>
+        <div><strong>Łącznie:</strong><br>${formatHours(allMins)}</div>
+      </div>
+    `;
+    summary.innerHTML = summaryHTML;
+    element.appendChild(summary);
+
+    const table = document.createElement("table");
+    table.style.width = "100%";
+    table.style.borderCollapse = "collapse";
+    table.style.marginTop = "20px";
+
+    const thead = document.createElement("thead");
+    thead.innerHTML = `
+      <tr style="background
