@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Plan wyjazdów</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f6f0ff" />
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- html2canvas do eksportu obrazu -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f6f0ff;
+      --card: #ffffff;
+      --accent: #8b7bff;
+      --accent-soft: #d7d0ff;
+      --text-main: #222;
+      --text-muted: #666;
+      --danger: #ff6b6b;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg); padding: 12px; min-height: 100vh; }
+    .app { max-width: 480px; margin: 0 auto; }
+
+    header { display: flex; justify-content: space-between; margin-bottom: 12px; }
+    header h1 { font-size: 20px; font-weight: 700; }
+    header span { font-size: 12px; color: var(--text-muted); }
+
+    button {
+      border-radius: 999px;
+      border: none;
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-secondary { background: var(--accent-soft); color: var(--text-main); }
+    .btn-danger { background: var(--danger); color: white; }
+
+    .list, .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+      margin-bottom: 10px;
+    }
+
+    .plan-row { display: flex; justify-content: space-between; padding: 6px 0; cursor: pointer; }
+    .plan-title { font-size: 15px; font-weight: 600; }
+    .plan-sub { font-size: 12px; color: var(--text-muted); }
+    .chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); }
+
+    .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+    .field label { font-size: 12px; color: var(--text-muted); }
+    .field input {
+      border-radius: 999px;
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      font-size: 14px;
+    }
+
+    .shift-card { border-left: 3px solid var(--accent-soft); }
+    .shift-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .shift-time { font-weight: 600; }
+
+    .group-card { background: #f9f7ff; padding: 6px 8px; border-radius: 10px; margin-top: 6px; }
+    .group-header { display: flex; justify-content: space-between; }
+    .group-title { font-size: 13px; font-weight: 600; }
+    .group-leader { font-size: 12px; color: var(--text-muted); }
+
+    .members { margin-top: 4px; padding-left: 10px; }
+    .member-row { font-size: 12px; }
+
+    .hidden { display: none; }
+    .small { font-size: 11px; color: var(--text-muted); }
+  </style>
+</head>
+
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div>
+      <h1>Plan wyjazdów</h1>
+      <span>Twoje nocki, grupy i godziny</span>
+    </div>
+    <button class="btn-primary" id="btnNewPlan">+ Plan</button>
+  </header>
+
+  <!-- LISTA PLANÓW -->
+  <div id="screenPlans">
+    <div class="list" id="plansList"></div>
+    <div class="small">Dane zapisują się lokalnie (offline).</div>
+  </div>
+
+  <!-- SZCZEGÓŁY PLANU -->
+  <div id="screenPlanDetail" class="hidden">
+
+    <div class="card">
+      <div class="toolbar" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-secondary" id="btnBack">&larr; Plany</button>
+        <button class="btn-secondary" id="btnDuplicatePlan">Duplikuj</button>
+        <button class="btn-primary" id="btnExportImage">Eksportuj jako obraz</button>
+        <button class="btn-danger" id="btnDeletePlan">Usuń</button>
+      </div>
+
+      <div class="field">
+        <label>Nazwa planu</label>
+        <input type="text" id="planNameInput" />
+      </div>
+
+      <div class="field">
+        <label>Data</label>
+        <input type="date" id="planDateInput" />
+      </div>
+
+      <button class="btn-primary" id="btnAddShift">+ Godzina</button>
+    </div>
+
+    <div id="shiftsContainer"></div>
+  </div>
+
+</div>
+
+<script>
+/* -------------------------
+   DANE
+--------------------------*/
+let plans = [];
+let currentPlanId = null;
+
+function loadPlans() {
+  plans = JSON.parse(localStorage.getItem("trip_plans_v1") || "[]");
+}
+function savePlans() {
+  localStorage.setItem("trip_plans_v1", JSON.stringify(plans));
+}
+function getCurrentPlan() {
+  return plans.find(p => p.id === currentPlanId);
+}
+
+/* -------------------------
+   LISTA PLANÓW
+--------------------------*/
+const screenPlans = document.getElementById("screenPlans");
+const screenPlanDetail = document.getElementById("screenPlanDetail");
+const plansListEl = document.getElementById("plansList");
+
+function showScreenPlans() {
+  screenPlans.classList.remove("hidden");
+  screenPlanDetail.classList.add("hidden");
+  renderPlansList();
+}
+function showScreenPlanDetail() {
+  screenPlans.classList.add("hidden");
+  screenPlanDetail.classList.remove("hidden");
+  renderPlanDetail();
+}
+
+function renderPlansList() {
+  if (!plans.length) {
+    plansListEl.innerHTML = "<div class='small'>Brak planów.</div>";
+    return;
+  }
+  plansListEl.innerHTML = "";
+  plans.forEach(plan => {
+    const div = document.createElement("div");
+    div.className = "plan-row";
+    div.innerHTML = `
+      <div>
+        <div class="plan-title">${plan.name}</div>
+        <div class="plan-sub">${plan.date}</div>
+      </div>
+      <div><span class="chip">${plan.shifts.length} godz.</span></div>
+    `;
+    div.onclick = () => openPlan(plan.id);
+    plansListEl.appendChild(div);
+  });
+}
+
+function createPlan() {
+  const id = Date.now().toString();
+  plans.push({
+    id,
+    name: "Nowy plan",
+    date: new Date().toISOString().slice(0,10),
+    shifts: []
+  });
+  savePlans();
+  openPlan(id);
+}
+
+function openPlan(id) {
+  currentPlanId = id;
+  showScreenPlanDetail();
+}
+
+/* -------------------------
+   SZCZEGÓŁY PLANU
+--------------------------*/
+const planNameInput = document.getElementById("planNameInput");
+const planDateInput = document.getElementById("planDateInput");
+const shiftsContainer = document.getElementById("shiftsContainer");
+
+function renderPlanDetail() {
+  const plan = getCurrentPlan();
+  planNameInput.value = plan.name;
+  planDateInput.value = plan.date;
+
+  shiftsContainer.innerHTML = "";
+  plan.shifts.forEach(shift => {
+    const div = document.createElement("div");
+    div.className = "card shift-card";
+    div.innerHTML = `
+      <div class="shift-header">
+        <div class="shift-time">${shift.time}</div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-secondary editShift">Edytuj</button>
+          <button class="btn-danger deleteShift">Usuń</button>
+        </div>
+      </div>
+      <button class="btn-primary addGroup">+ Grupa</button>
+      <div class="groups"></div>
+    `;
+
+    const groupsEl = div.querySelector(".groups");
+
+    shift.groups.forEach(group => {
+      const g = document.createElement("div");
+      g.className = "group-card";
+      g.innerHTML = `
+        <div class="group-header">
+          <div>
+            <div class="group-title">Grupa ${group.number}</div>
+            <div class="group-leader">Lider: ${group.leader}</div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn-secondary editGroup">Edytuj</button>
+            <button class="btn-danger deleteGroup">Usuń</button>
+          </div>
+        </div>
+        <div class="members">
+          ${group.members.map(m => `<div class="member-row">${m.label}. ${m.name}</div>`).join("")}
+        </div>
+      `;
+
+      g.querySelector(".editGroup").onclick = () => editGroup(shift.id, group.id);
+      g.querySelector(".deleteGroup").onclick = () => deleteGroup(shift.id, group.id);
+
+      groupsEl.appendChild(g);
+    });
+
+    div.querySelector(".addGroup").onclick = () => addGroup(shift.id);
+    div.querySelector(".editShift").onclick = () => editShift(shift.id);
+    div.querySelector(".deleteShift").onclick = () => deleteShift(shift.id);
+
+    shiftsContainer.appendChild(div);
+  });
+}
+
+/* -------------------------
+   OPERACJE NA PLANIE
+--------------------------*/
+planNameInput.oninput = () => {
+  const p = getCurrentPlan();
+  p.name = planNameInput.value;
+  savePlans();
+  renderPlansList();
+};
+planDateInput.onchange = () => {
+  const p = getCurrentPlan();
+  p.date = planDateInput.value;
+  savePlans();
+  renderPlansList();
+};
+
+/* -------------------------
+   GODZINY
+--------------------------*/
+document.getElementById("btnAddShift").onclick = () => {
+  const time = prompt("Godzina (np. 19:30):");
+  if (!time) return;
+  const p = getCurrentPlan();
+  p.shifts.push({
+    id: Date.now().toString(),
+    time,
+    groups: []
+  });
+  savePlans();
+  renderPlanDetail();
+};
+
+function editShift(id) {
+  const p = getCurrentPlan();
+  const s = p.shifts.find(x => x.id === id);
+  const t = prompt("Nowa godzina:", s.time);
+  if (!t) return;
+  s.time = t;
+  savePlans();
+  renderPlanDetail();
+}
+
+function deleteShift(id) {
+  const p = getCurrentPlan();
+  p.shifts = p.shifts.filter(s => s.id !== id);
+  savePlans();
+  renderPlanDetail();
+}
+
+/* -------------------------
+   GRUPY
+--------------------------*/
+function addGroup(shiftId) {
+  const p = getCurrentPlan();
+  const s = p.shifts.find(x => x.id === shiftId);
+
+  const number = prompt("Numer grupy:", s.groups.length + 1);
+  if (!number) return;
+
+  const leader = prompt("Lider:") || "";
+
+  const members = [];
+  let idx = 0;
+  while (true) {
+    const label = String.fromCharCode(97 + idx);
+    const name = prompt(`Członek ${label}. (puste = koniec)`);
+    if (!name) break;
+    members.push({ label, name });
+    idx++;
+  }
+
+  s.groups.push({
+    id: Date.now().toString(),
+    number,
+    leader,
+    members
+  });
+
+  savePlans();
+  renderPlanDetail();
+}
+
+function editGroup(shiftId, groupId) {
+  const p = getCurrentPlan();
+  const s = p.shifts.find(x => x.id === shiftId);
+  const g = s.groups.find(x => x.id === groupId);
+
+  const number = prompt("Numer grupy:", g.number);
+  if (!number) return;
+
+  const leader = prompt("Lider:", g.leader) || "";
+
+  const members = [];
+  let idx = 0;
+  while (true) {
+    const label = String.fromCharCode(97 + idx);
+    const name = prompt(`Członek ${label}. (puste = koniec)`, g.members[idx]?.name || "");
+    if (!name) break;
+    members.push({ label, name });
+    idx++;
+  }
+
+  g.number = number;
+  g.leader = leader;
+  g.members = members;
+
+  savePlans();
+  renderPlanDetail();
+}
+
+function deleteGroup(shiftId, groupId) {
+  const p = getCurrentPlan();
+  const s = p.shifts.find(x => x.id === shiftId);
+  s.groups = s.groups.filter(g => g.id !== groupId);
+  savePlans();
+  renderPlanDetail();
+}
+
+/* -------------------------
+   EKSPORT DO OBRAZU
+--------------------------*/
+document.getElementById("btnExportImage").onclick = () => {
+  const area = document.getElementById("screenPlanDetail");
+
+  html2canvas(area, { scale: 2, backgroundColor: "#ffffff" })
+    .then(canvas => {
+      const img = canvas.toDataURL("image/png");
+      const tab = window.open();
+      tab.document.write(`<img src="${img}" style="width:100%;">`);
+    });
+};
+
+/* -------------------------
+   TOOLBAR
+--------------------------*/
+document.getElementById("btnNewPlan").onclick = createPlan;
+document.getElementById("btnBack").onclick = showScreenPlans;
+document.getElementById("btnDuplicatePlan").onclick = () => {
+  const p = getCurrentPlan();
+  const copy = JSON.parse(JSON.stringify(p));
+  copy.id = Date.now().toString();
+  copy.name += " (kopia)";
+  plans.push(copy);
+  savePlans();
+  alert("Plan zduplikowany");
+  renderPlansList();
+};
+document.getElementById("btnDeletePlan").onclick = () => {
+  plans = plans.filter(p => p.id !== currentPlanId);
+  savePlans();
+  showScreenPlans();
+};
+
+/* -------------------------
+   INIT
+--------------------------*/
+loadPlans();
+renderPlansList();
+showScreenPlans();
+
+/* -------------------------
+   SERVICE WORKER
+--------------------------*/
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
+</body>
+</html>
